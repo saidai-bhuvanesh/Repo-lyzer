@@ -26,6 +26,9 @@ type AnalysisResult struct {
 	ContributorActivity analyzer.ContributorActivityResult
 	RiskAlerts          *analyzer.RiskAlertsResult
 	QualityDashboard    *analyzer.QualityDashboard
+	Issues              []github.Issue
+	PRs                 []github.PullRequest
+	MaintainerAnalysis  *analyzer.MaintainerAnalysis
 }
 
 // CachedAnalysisResult wraps AnalysisResult with cache metadata

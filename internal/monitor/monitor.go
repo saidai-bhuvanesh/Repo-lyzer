@@ -19,34 +19,34 @@ const monitorStateTTL = 100 * 365 * 24 * time.Hour
 
 // MonitorState represents the current state of a monitored repository
 type MonitorState struct {
-	Owner               string    `json:"owner"`
-	Repo                string    `json:"repo"`
-	LastCommitSHA       string    `json:"last_commit_sha"`
-	LastIssueID         int       `json:"last_issue_id"`
-	LastPRID            int       `json:"last_pr_id"`
-	LastContributorCount int      `json:"last_contributor_count"`
-	LastUpdated         time.Time `json:"last_updated"`
+	Owner                string    `json:"owner"`
+	Repo                 string    `json:"repo"`
+	LastCommitSHA        string    `json:"last_commit_sha"`
+	LastIssueID          int       `json:"last_issue_id"`
+	LastPRID             int       `json:"last_pr_id"`
+	LastContributorCount int       `json:"last_contributor_count"`
+	LastUpdated          time.Time `json:"last_updated"`
 }
 
 // Monitor manages real-time monitoring of a GitHub repository
 type Monitor struct {
-	client       *github.Client
-	cache        *cache.Cache
-	owner        string
-	repo         string
-	interval     time.Duration
-	state        *MonitorState
-	stateMutex   sync.RWMutex
-	ctx          context.Context
-	cancel       context.CancelFunc
-	wg           sync.WaitGroup
+	client        *github.Client
+	cache         *cache.Cache
+	owner         string
+	repo          string
+	interval      time.Duration
+	state         *MonitorState
+	stateMutex    sync.RWMutex
+	ctx           context.Context
+	cancel        context.CancelFunc
+	wg            sync.WaitGroup
 	notifications chan Notification
-	startOnce    sync.Once
+	startOnce     sync.Once
 }
 
 // Notification represents a monitoring notification
 type Notification struct {
-	Type      string    `json:"type"`      // "commit", "issue", "pr", "contributor"
+	Type      string    `json:"type"` // "commit", "issue", "pr", "contributor"
 	Title     string    `json:"title"`
 	Message   string    `json:"message"`
 	Timestamp time.Time `json:"timestamp"`

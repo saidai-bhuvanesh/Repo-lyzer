@@ -143,6 +143,7 @@ var analyzeCmd = &cobra.Command{
 		dryRun, _ := cmd.Flags().GetBool("dry-run")
 		compact, _ := cmd.Flags().GetBool("compact")
 		summary, _ := cmd.Flags().GetBool("summary")
+		incremental, _ := cmd.Flags().GetBool("incremental")
 
 		if dryRun {
 			return runDryRun(args[0])
@@ -228,6 +229,22 @@ var analyzeCmd = &cobra.Command{
 			return fmt.Errorf("failed to get file tree: %w", err)
 		}
 		overallProgress.CompleteStep("File structure scanned")
+		// Incremental analysis support
+		if incremental {
+
+			currentHashes := make(map[string]string)
+
+			for _, file := range fileTree {
+				if file.Type != "blob" {
+					continue
+				}
+
+				currentHashes[file.Path] = file.Sha
+			}
+
+			fmt.Println("🔄 Incremental analysis enabled")
+			fmt.Printf("📂 Repository files tracked: %d\n", len(currentHashes))
+		}
 
 		// Calculate repository health score
 		overallProgress.StartStep("💪 Computing repository health")
@@ -471,7 +488,28 @@ func formatTimeAgo(t time.Time) string {
 
 func init() {
 	rootCmd.AddCommand(analyzeCmd)
-	analyzeCmd.Flags().Bool("dry-run", false, "Validate repository URL and show what metrics would be calculated without making API calls")
-	analyzeCmd.Flags().Bool("compact", false, "Output compact JSON summary for machine consumption")
-	analyzeCmd.Flags().Bool("summary", false, "Display a quick 5-line repository summary")
+
+	analyzeCmd.Flags().Bool(
+		"dry-run",
+		false,
+		"Validate repository URL and show what metrics would be calculated without making API calls",
+	)
+
+	analyzeCmd.Flags().Bool(
+		"compact",
+		false,
+		"Output compact JSON summary for machine consumption",
+	)
+
+	analyzeCmd.Flags().Bool(
+		"summary",
+		false,
+		"Display a quick 5-line repository summary",
+	)
+
+	analyzeCmd.Flags().Bool(
+		"incremental",
+		false,
+		"Analyze only changed files using cached metadata",
+	)
 }

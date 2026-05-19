@@ -25,6 +25,7 @@ type AnalyzerDataBridge struct {
 // to provide a clean interface between the analyzer logic and UI components.
 // Parameters:
 //   - result: AnalysisResult containing all repository analysis data
+//
 // Returns a pointer to the initialized AnalyzerDataBridge.
 func NewAnalyzerDataBridge(result AnalysisResult) *AnalyzerDataBridge {
 	return &AnalyzerDataBridge{
