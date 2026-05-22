@@ -538,6 +538,12 @@ func init() {
 		"Display a quick 5-line repository summary",
 	)
 
+	analyzeCmd.Flags().String(
+	"save",
+	"",
+	"Save full analysis JSON to a file",
+	)
+
 	analyzeCmd.Flags().Bool(
 		"incremental",
 		false,
