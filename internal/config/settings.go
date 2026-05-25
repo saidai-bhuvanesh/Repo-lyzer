@@ -46,6 +46,9 @@ type AppSettings struct {
 	// Analysis settings
 	DefaultAnalysisType string `json:"default_analysis_type"` // "quick", "detailed", "custom"
 
+	// Log settings
+	LogLevel string `json:"log_level"`
+
 	// Monitoring settings
 	MonitoringEnabled      bool          `json:"monitoring_enabled"`
 	DefaultMonitorInterval time.Duration `json:"default_monitor_interval"`
@@ -64,6 +67,7 @@ func DefaultSettings() *AppSettings {
 		ExportDirectory:     filepath.Join(home, "Downloads"),
 		GitHubToken:         "",
 		DefaultAnalysisType: "quick",
+		LogLevel:            "info",
 	}
 }
 
@@ -78,6 +82,9 @@ func getSettingsDir() (string, error) {
 
 // getSettingsPath returns the full path to the settings file
 func getSettingsPath() (string, error) {
+	if envPath := os.Getenv("REPO_LYZER_CONFIG_PATH"); envPath != "" {
+		return envPath, nil
+	}
 	dir, err := getSettingsDir()
 	if err != nil {
 		return "", err
@@ -89,31 +96,59 @@ func getSettingsPath() (string, error) {
 func LoadSettings() (*AppSettings, error) {
 	settingsPath, err := getSettingsPath()
 	if err != nil {
-		return DefaultSettings(), err
-	}
-
-	data, err := os.ReadFile(settingsPath)
-	if err != nil {
-		// Return defaults if file doesn't exist
-		if os.IsNotExist(err) {
-			return DefaultSettings(), nil
-		}
-		return DefaultSettings(), err
+		return applyEnvOverrides(DefaultSettings()), err
 	}
 
 	settings := DefaultSettings()
-	if err := json.Unmarshal(data, settings); err != nil {
-		return DefaultSettings(), err
+
+	data, err := os.ReadFile(settingsPath)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return applyEnvOverrides(settings), err
+		}
+		// File doesn't exist, just apply env overrides to defaults
+	} else {
+		if err := json.Unmarshal(data, settings); err != nil {
+			return applyEnvOverrides(DefaultSettings()), err
+		}
 	}
 
-	return settings, nil
+	return applyEnvOverrides(settings), nil
+}
+
+// applyEnvOverrides applies environment variable overrides to the given settings
+func applyEnvOverrides(settings *AppSettings) *AppSettings {
+	if token := os.Getenv("REPO_LYZER_GITHUB_TOKEN"); token != "" {
+		settings.GitHubToken = token
+	}
+
+	if interval := os.Getenv("REPO_LYZER_INTERVAL"); interval != "" {
+		if d, err := time.ParseDuration(interval); err == nil {
+			settings.DefaultMonitorInterval = d
+		}
+	}
+
+	if logLevel := os.Getenv("REPO_LYZER_LOG_LEVEL"); logLevel != "" {
+		settings.LogLevel = strings.ToLower(logLevel)
+	}
+
+	return settings
 }
 
 // SaveSettings saves settings to disk
 func (s *AppSettings) SaveSettings() error {
-	dir, err := getSettingsDir()
-	if err != nil {
-		return err
+	var dir, settingsPath string
+
+	if envPath := os.Getenv("REPO_LYZER_CONFIG_PATH"); envPath != "" {
+		settingsPath = envPath
+		dir = filepath.Dir(envPath)
+	} else {
+		var err error
+		dir, err = getSettingsDir()
+		if err != nil {
+			return err
+		}
+		settingsPath = filepath.Join(dir, "settings.json")
 	}
 
 	// Ensure directory exists
@@ -121,7 +156,6 @@ func (s *AppSettings) SaveSettings() error {
 		return err
 	}
 
-	settingsPath := filepath.Join(dir, "settings.json")
 	data, err := json.MarshalIndent(s, "", "  ")
 	if err != nil {
 		return err
