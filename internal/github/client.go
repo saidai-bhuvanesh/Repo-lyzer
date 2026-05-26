@@ -73,7 +73,7 @@ func (c *Client) get(url string, target interface{}) error {
 	}
 	defer resp.Body.Close()
 
-	// Handle rate limiting with detailed message
+	// Handle rate limiting and forbidden states securely
 	if resp.StatusCode == http.StatusForbidden || resp.StatusCode == 429 {
 		remaining := resp.Header.Get("X-RateLimit-Remaining")
 		resetTime := resp.Header.Get("X-RateLimit-Reset")
@@ -90,6 +90,9 @@ func (c *Client) get(url string, target interface{}) error {
 			}
 			return fmt.Errorf("🔴 Rate limit exceeded! Resets in %s", formatDuration(waitTime))
 		}
+		
+		// Fallback protective validation gate for other 403 scenarios
+		return fmt.Errorf("access forbidden (Status 403): the request was rejected by GitHub API or requires extended permissions")
 	}
 
 	if resp.StatusCode == http.StatusNotFound {
