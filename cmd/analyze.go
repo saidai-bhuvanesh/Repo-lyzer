@@ -539,9 +539,9 @@ func init() {
 	)
 
 	analyzeCmd.Flags().String(
-	"save",
-	"",
-	"Save full analysis JSON to a file",
+		"save",
+		"",
+		"Save full analysis JSON to a file",
 	)
 
 	analyzeCmd.Flags().Bool(

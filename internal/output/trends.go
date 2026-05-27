@@ -95,14 +95,14 @@ func printCommitTrends(metrics *analyzer.TrendMetrics, detailed bool) {
 	fmt.Printf("   Avg/Month: %.1f commits\n", metrics.AvgCommitsPerMonth)
 	fmt.Printf("   Sparkline: %s\n\n", sparkline)
 	if detailed {
-    fmt.Println("Monthly Breakdown:")
-    
-    for _, month := range metrics.MonthlyData {
-        fmt.Printf("- %s : %d commits\n", month.Month.Format("Jan 06"), month.Commits)
-    }
+		fmt.Println("Monthly Breakdown:")
 
-    fmt.Println()
-}
+		for _, month := range metrics.MonthlyData {
+			fmt.Printf("- %s : %d commits\n", month.Month.Format("Jan 06"), month.Commits)
+		}
+
+		fmt.Println()
+	}
 }
 
 // printContributorTrends prints contributor growth trends

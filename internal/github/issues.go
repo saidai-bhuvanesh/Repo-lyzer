@@ -25,4 +25,3 @@ func (c *Client) GetIssues(owner, repo string, state string) ([]Issue, error) {
 	err := c.get(url, &issues)
 	return issues, err
 }
-

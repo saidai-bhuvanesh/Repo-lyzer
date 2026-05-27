@@ -1039,4 +1039,3 @@ func (m DashboardModel) maintainerView() string {
 		panels,
 	)
 }
-

@@ -2,11 +2,14 @@ package ui
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"unicode"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -172,20 +175,12 @@ func getDesktopPath() string {
 // openInBrowser opens the file on GitHub in the default browser
 func (m FileEditModel) openInBrowser() tea.Cmd {
 	return func() tea.Msg {
-		url := fmt.Sprintf("https://github.com/%s/%s/blob/main%s",
-			m.repoOwner, m.repoName, m.filePath)
-
-		var cmd *exec.Cmd
-		switch runtime.GOOS {
-		case "windows":
-			cmd = exec.Command("cmd", "/c", "start", url)
-		case "darwin":
-			cmd = exec.Command("open", url)
-		default:
-			cmd = exec.Command("xdg-open", url)
+		githubURL, err := buildBlobURL("github.com", m.repoOwner, m.repoName, m.filePath)
+		if err != nil {
+			return openResultMsg{err}
 		}
 
-		err := cmd.Start()
+		err = openExternalURL(githubURL)
 		return openResultMsg{err}
 	}
 }
@@ -194,22 +189,96 @@ func (m FileEditModel) openInBrowser() tea.Cmd {
 func (m FileEditModel) openInVSCode() tea.Cmd {
 	return func() tea.Msg {
 		// Use vscode.dev to open the file in browser-based VS Code
-		url := fmt.Sprintf("https://vscode.dev/github/%s/%s/blob/main%s",
-			m.repoOwner, m.repoName, m.filePath)
-
-		var cmd *exec.Cmd
-		switch runtime.GOOS {
-		case "windows":
-			cmd = exec.Command("cmd", "/c", "start", url)
-		case "darwin":
-			cmd = exec.Command("open", url)
-		default:
-			cmd = exec.Command("xdg-open", url)
+		vscodeURL, err := buildVSCodeBlobURL(m.repoOwner, m.repoName, m.filePath)
+		if err != nil {
+			return openResultMsg{err}
 		}
 
-		err := cmd.Start()
+		err = openExternalURL(vscodeURL)
 		return openResultMsg{err}
 	}
+}
+
+// buildBlobURL creates a safe GitHub blob URL for a repository file.
+func buildBlobURL(host, owner, repo, filePath string) (string, error) {
+	owner = strings.TrimSpace(owner)
+	repo = strings.TrimSpace(repo)
+	if owner == "" || repo == "" {
+		return "", fmt.Errorf("invalid repository reference")
+	}
+
+	safePath, err := sanitizeRepoPath(filePath)
+	if err != nil {
+		return "", err
+	}
+
+	base := &url.URL{Scheme: "https", Host: host}
+	base.Path = path.Join(owner, repo, "blob", "main", safePath)
+	return base.String(), nil
+}
+
+// buildVSCodeBlobURL creates a safe vscode.dev blob URL for a repository file.
+func buildVSCodeBlobURL(owner, repo, filePath string) (string, error) {
+	owner = strings.TrimSpace(owner)
+	repo = strings.TrimSpace(repo)
+	if owner == "" || repo == "" {
+		return "", fmt.Errorf("invalid repository reference")
+	}
+
+	safePath, err := sanitizeRepoPath(filePath)
+	if err != nil {
+		return "", err
+	}
+
+	base := &url.URL{Scheme: "https", Host: "vscode.dev"}
+	base.Path = path.Join("github", owner, repo, "blob", "main", safePath)
+	return base.String(), nil
+}
+
+// sanitizeRepoPath normalizes a repository path and validates control characters.
+func sanitizeRepoPath(filePath string) (string, error) {
+	cleaned := strings.TrimSpace(strings.TrimPrefix(filePath, "/"))
+	if cleaned == "" {
+		return "", fmt.Errorf("invalid file path")
+	}
+
+	parts := strings.Split(cleaned, "/")
+	normalized := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if p == "" {
+			continue
+		}
+
+		for _, r := range p {
+			if unicode.IsControl(r) {
+				return "", fmt.Errorf("invalid file path")
+			}
+		}
+
+		normalized = append(normalized, p)
+	}
+
+	if len(normalized) == 0 {
+		return "", fmt.Errorf("invalid file path")
+	}
+
+	return strings.Join(normalized, "/"), nil
+}
+
+// openExternalURL opens a URL using the OS handler without invoking a shell.
+func openExternalURL(targetURL string) error {
+	var cmd *exec.Cmd
+
+	switch runtime.GOOS {
+	case "windows":
+		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", targetURL)
+	case "darwin":
+		cmd = exec.Command("open", targetURL)
+	default:
+		cmd = exec.Command("xdg-open", targetURL)
+	}
+
+	return cmd.Start()
 }
 
 // cloneToDesktop clones the repository to the Desktop folder

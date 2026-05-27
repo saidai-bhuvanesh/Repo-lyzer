@@ -61,11 +61,11 @@ func TestAnalyzeMaintainerDashboard(t *testing.T) {
 			User:      github.User{Login: "user2"},
 		},
 		{
-			Number:    103,
-			Title:     "Pull Request Issue",
-			State:     "open",
+			Number:      103,
+			Title:       "Pull Request Issue",
+			State:       "open",
 			PullRequest: &struct{}{}, // Should be ignored as it's a PR
-			User:      github.User{Login: "user3"},
+			User:        github.User{Login: "user3"},
 		},
 	}
 
@@ -81,8 +81,8 @@ func TestAnalyzeMaintainerDashboard(t *testing.T) {
 		repo,
 		prs,
 		issues,
-		75,   // low health (<80)
-		2,    // low bus factor (<=2)
+		75,    // low health (<80)
+		2,     // low bus factor (<=2)
 		false, // no lock file
 		contributors,
 	)

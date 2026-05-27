@@ -2,8 +2,8 @@ package output
 
 import (
 	"encoding/json"
-	"os"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -32,16 +32,16 @@ func PrintLanguages(langs map[string]int) {
 }
 
 type AnalysisOutput struct {
-	Repo           interface{}    `json:"Repo"`
-	Commits        interface{}    `json:"Commits"`
-	Contributors   interface{}    `json:"Contributors"`
-	FileTree       interface{}    `json:"FileTree"`
-	Languages      map[string]int `json:"Languages"`
-	HealthScore    int            `json:"HealthScore"`
-	BusFactor      int            `json:"BusFactor"`
-	BusRisk        string         `json:"BusRisk"`
-	MaturityScore  int            `json:"MaturityScore"`
-	MaturityLevel  string         `json:"MaturityLevel"`
+	Repo          interface{}    `json:"Repo"`
+	Commits       interface{}    `json:"Commits"`
+	Contributors  interface{}    `json:"Contributors"`
+	FileTree      interface{}    `json:"FileTree"`
+	Languages     map[string]int `json:"Languages"`
+	HealthScore   int            `json:"HealthScore"`
+	BusFactor     int            `json:"BusFactor"`
+	BusRisk       string         `json:"BusRisk"`
+	MaturityScore int            `json:"MaturityScore"`
+	MaturityLevel string         `json:"MaturityLevel"`
 }
 
 func SaveAnalysisJSON(
