@@ -370,6 +370,7 @@ func (s *AppSettings) GetScheduledJobByID(jobID string) *ScheduledJob {
 }
 
 // UpdateScheduledJob updates an existing scheduled job and saves settings
+// UpdateScheduledJob updates an existing scheduled job and saves settings
 func (s *AppSettings) UpdateScheduledJob(job ScheduledJob) error {
 	for i, existingJob := range s.ScheduledJobs {
 		if existingJob.ID == job.ID {
