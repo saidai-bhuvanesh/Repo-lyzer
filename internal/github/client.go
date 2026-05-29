@@ -9,6 +9,10 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/agnivo988/Repo-lyzer/internal/cache"
+	gocache "github.com/patrickmn/go-cache"
+	"golang.org/x/sync/singleflight"
 )
 
 // Client handles GitHub API requests
@@ -16,6 +20,8 @@ type Client struct {
 	http  *http.Client
 	token string
 	ctx   context.Context
+	cache *gocache.Cache
+	sf    singleflight.Group
 }
 
 // User represents a GitHub user
@@ -31,6 +37,7 @@ func NewClient() *Client {
 		http:  &http.Client{Timeout: 30 * time.Second},
 		token: os.Getenv("GITHUB_TOKEN"),
 		ctx:   context.Background(),
+		cache: cache.New(),
 	}
 }
 
@@ -51,6 +58,7 @@ func (c *Client) HasToken() bool {
 // SetToken sets the GitHub token for authentication
 func (c *Client) SetToken(token string) {
 	c.token = token
+	c.cache.Flush()
 }
 
 // get performs a GET request to the GitHub API and decodes the JSON response.
@@ -90,7 +98,7 @@ func (c *Client) get(url string, target interface{}) error {
 			}
 			return fmt.Errorf("🔴 Rate limit exceeded! Resets in %s", formatDuration(waitTime))
 		}
-		
+
 		// Fallback protective validation gate for other 403 scenarios
 		return fmt.Errorf("access forbidden (Status 403): the request was rejected by GitHub API or requires extended permissions")
 	}
@@ -123,36 +131,93 @@ func formatDuration(d time.Duration) string {
 
 // GetUser fetches the authenticated user
 func (c *Client) GetUser() (*User, error) {
-	var u User
-	err := c.get("https://api.github.com/user", &u)
-	return &u, err
+	cacheKey := "user:me"
+	if cached, found := c.cache.Get(cacheKey); found {
+		u := cached.(User)
+		return &u, nil
+	}
+
+	v, err, _ := c.sf.Do(cacheKey, func() (interface{}, error) {
+		if cached, found := c.cache.Get(cacheKey); found {
+			u := cached.(User)
+			return &u, nil
+		}
+
+		var u User
+		if err := c.get("https://api.github.com/user", &u); err != nil {
+			return nil, err
+		}
+
+		c.cache.Set(cacheKey, u, gocache.DefaultExpiration)
+		return &u, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return v.(*User), nil
 }
 
 // GetUserByLogin fetches a user by their login/username
 func (c *Client) GetUserByLogin(login string) (*User, error) {
-	url := fmt.Sprintf("https://api.github.com/users/%s", login)
-	var u User
-	err := c.get(url, &u)
-	return &u, err
+	cacheKey := "user:" + login
+	if cached, found := c.cache.Get(cacheKey); found {
+		u := cached.(User)
+		return &u, nil
+	}
+
+	v, err, _ := c.sf.Do(cacheKey, func() (interface{}, error) {
+		if cached, found := c.cache.Get(cacheKey); found {
+			u := cached.(User)
+			return &u, nil
+		}
+
+		url := fmt.Sprintf("https://api.github.com/users/%s", login)
+		var u User
+		if err := c.get(url, &u); err != nil {
+			return nil, err
+		}
+
+		c.cache.Set(cacheKey, u, gocache.DefaultExpiration)
+		return &u, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return v.(*User), nil
 }
 
 // GetFileContent fetches the content of a file from a repository
 // Returns the base64 encoded content
 func (c *Client) GetFileContent(owner, repo, path string) (string, error) {
-	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/contents/%s", owner, repo, path)
-
-	var result struct {
-		Content  string `json:"content"`
-		Encoding string `json:"encoding"`
+	cacheKey := "file:" + owner + "/" + repo + ":" + path
+	if cached, found := c.cache.Get(cacheKey); found {
+		return cached.(string), nil
 	}
 
-	if err := c.get(url, &result); err != nil {
+	v, err, _ := c.sf.Do(cacheKey, func() (interface{}, error) {
+		if cached, found := c.cache.Get(cacheKey); found {
+			return cached.(string), nil
+		}
+
+		url := fmt.Sprintf("https://api.github.com/repos/%s/%s/contents/%s", owner, repo, path)
+
+		var result struct {
+			Content  string `json:"content"`
+			Encoding string `json:"encoding"`
+		}
+
+		if err := c.get(url, &result); err != nil {
+			return "", err
+		}
+
+		// GitHub returns content with newlines, remove them for proper base64 decoding
+		content := strings.ReplaceAll(result.Content, "\n", "")
+
+		c.cache.Set(cacheKey, content, gocache.DefaultExpiration)
+		return content, nil
+	})
+	if err != nil {
 		return "", err
 	}
-
-	// GitHub returns content with newlines, remove them for proper base64 decoding
-	content := result.Content
-	content = strings.ReplaceAll(content, "\n", "")
-
-	return content, nil
+	return v.(string), nil
 }
