@@ -75,13 +75,26 @@ func TestRenderCompareOutputs(t *testing.T) {
 	if !strings.Contains(terminal, "Repository Comparison") {
 		t.Fatalf("terminal output missing header: %s", terminal)
 	}
+	lowerTerm := strings.ToLower(terminal)
+	normTerm := strings.ReplaceAll(lowerTerm, " / ", "/")
+	if !strings.Contains(normTerm, "owner/alpha") || !strings.Contains(normTerm, "owner/beta") {
+		t.Fatalf("terminal output missing one of repo names: %s", terminal)
+	}
+	if !strings.Contains(normTerm, strings.ToLower(report.Verdict)) {
+		t.Fatalf("terminal output missing verdict: %s", terminal)
+	}
 
 	jsonData, err := RenderCompareJSON(report)
 	if err != nil {
 		t.Fatalf("RenderCompareJSON failed: %v", err)
 	}
-	if !strings.Contains(string(jsonData), "owner/alpha") {
-		t.Fatalf("JSON output missing repo name: %s", string(jsonData))
+	lowerJSON := strings.ToLower(string(jsonData))
+	normJSON := strings.ReplaceAll(lowerJSON, " / ", "/")
+	if !strings.Contains(normJSON, "owner/alpha") || !strings.Contains(normJSON, "owner/beta") {
+		t.Fatalf("JSON output missing one of repo names: %s", string(jsonData))
+	}
+	if !strings.Contains(normJSON, strings.ToLower(report.Verdict)) {
+		t.Fatalf("JSON output missing verdict: %s", string(jsonData))
 	}
 
 	markdown, err := RenderCompareMarkdown(report)
@@ -91,6 +104,14 @@ func TestRenderCompareOutputs(t *testing.T) {
 	if !strings.Contains(string(markdown), "# Repository Comparison") {
 		t.Fatalf("markdown output missing title: %s", string(markdown))
 	}
+	lowerMD := strings.ToLower(string(markdown))
+	normMD := strings.ReplaceAll(lowerMD, " / ", "/")
+	if !strings.Contains(normMD, "owner/alpha") || !strings.Contains(normMD, "owner/beta") {
+		t.Fatalf("markdown output missing one of repo names: %s", string(markdown))
+	}
+	if !strings.Contains(normMD, strings.ToLower(report.Verdict)) {
+		t.Fatalf("markdown output missing verdict: %s", string(markdown))
+	}
 
 	htmlData, err := RenderCompareHTML(report)
 	if err != nil {
@@ -98,5 +119,13 @@ func TestRenderCompareOutputs(t *testing.T) {
 	}
 	if !strings.Contains(string(htmlData), "Repo-lyzer comparison report") {
 		t.Fatalf("html output missing title: %s", string(htmlData))
+	}
+	lowerHTML := strings.ToLower(string(htmlData))
+	normHTML := strings.ReplaceAll(lowerHTML, " / ", "/")
+	if !strings.Contains(normHTML, "owner/alpha") || !strings.Contains(normHTML, "owner/beta") {
+		t.Fatalf("html output missing one of repo names: %s", string(htmlData))
+	}
+	if !strings.Contains(normHTML, strings.ToLower(report.Verdict)) {
+		t.Fatalf("html output missing verdict: %s", string(htmlData))
 	}
 }

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"html/template"
 	"sort"
-	"strings"
 	"time"
 )
 
@@ -210,16 +209,4 @@ func scoreClass(score int) string {
 	}
 }
 
-func (r compareHTMLRepo) HasLanguages() bool {
-	return len(r.Languages) > 0
-}
-
-func joinClasses(parts ...string) string {
-	classes := make([]string, 0, len(parts))
-	for _, part := range parts {
-		if part != "" {
-			classes = append(classes, part)
-		}
-	}
-	return strings.Join(classes, " ")
-}
+// removed unused helpers: HasLanguages, joinClasses
