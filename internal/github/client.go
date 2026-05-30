@@ -64,58 +64,126 @@ func (c *Client) SetToken(token string) {
 // get performs a GET request to the GitHub API and decodes the JSON response.
 // It handles authentication and provides detailed error messages for rate limiting.
 func (c *Client) get(url string, target interface{}) error {
-	req, err := http.NewRequestWithContext(c.ctx, "GET", url, nil)
-	if err != nil {
-		return err
-	}
+	// Implement retry with exponential backoff and respect rate-limit headers.
+	const maxRetries = 3
 
-	req.Header.Set("Accept", "application/vnd.github+json")
-
-	if c.token != "" {
-		req.Header.Set("Authorization", "Bearer "+c.token)
-	}
-
-	resp, err := c.http.Do(req)
-	if err != nil {
-		return fmt.Errorf("network error: %w", err)
-	}
-	defer resp.Body.Close()
-
-	// Handle rate limiting and forbidden states securely
-	if resp.StatusCode == http.StatusForbidden || resp.StatusCode == 429 {
-		remaining := resp.Header.Get("X-RateLimit-Remaining")
-		resetTime := resp.Header.Get("X-RateLimit-Reset")
-
-		if remaining == "0" || resp.StatusCode == 429 {
-			resetUnix, _ := strconv.ParseInt(resetTime, 10, 64)
-			resetAt := time.Unix(resetUnix, 0)
-			waitTime := time.Until(resetAt)
-
-			if c.token == "" {
-				return fmt.Errorf("🔴 Rate limit exceeded! Resets in %s\n"+
-					"Tip: Set GITHUB_TOKEN env variable for 5000 requests/hour (vs 60 unauthenticated)",
-					formatDuration(waitTime))
-			}
-			return fmt.Errorf("🔴 Rate limit exceeded! Resets in %s", formatDuration(waitTime))
+	var lastErr error
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		req, err := http.NewRequestWithContext(c.ctx, "GET", url, nil)
+		if err != nil {
+			return err
 		}
 
-		// Fallback protective validation gate for other 403 scenarios
-		return fmt.Errorf("access forbidden (Status 403): the request was rejected by GitHub API or requires extended permissions")
+		req.Header.Set("Accept", "application/vnd.github+json")
+		if c.token != "" {
+			req.Header.Set("Authorization", "Bearer "+c.token)
+		}
+
+		resp, err := c.http.Do(req)
+		if err != nil {
+			lastErr = fmt.Errorf("network error: %w", err)
+			// Retry on transient network errors
+			if attempt == maxRetries {
+				return lastErr
+			}
+			backoff := time.Duration(1<<attempt) * time.Second
+			select {
+			case <-time.After(backoff):
+				continue
+			case <-c.ctx.Done():
+				return c.ctx.Err()
+			}
+		}
+
+		// Ensure body closed on retry or error branches
+		if resp == nil {
+			lastErr = fmt.Errorf("empty response")
+			if attempt == maxRetries {
+				return lastErr
+			}
+			continue
+		}
+
+		// Handle rate limiting: wait until reset and retry
+		if resp.StatusCode == http.StatusForbidden || resp.StatusCode == 429 {
+			remaining := resp.Header.Get("X-RateLimit-Remaining")
+			resetTime := resp.Header.Get("X-RateLimit-Reset")
+
+			if remaining == "0" || resp.StatusCode == 429 {
+				resetUnix, _ := strconv.ParseInt(resetTime, 10, 64)
+				resetAt := time.Unix(resetUnix, 0)
+				waitTime := time.Until(resetAt)
+				if waitTime < 0 {
+					waitTime = time.Second
+				}
+
+				resp.Body.Close()
+				// If unauthenticated, return informative error after waiting once
+				if c.token == "" {
+					select {
+					case <-time.After(waitTime + time.Second):
+						return fmt.Errorf("rate limit exceeded and no token configured; consider setting GITHUB_TOKEN")
+					case <-c.ctx.Done():
+						return c.ctx.Err()
+					}
+				}
+
+				// Authenticated: wait and retry
+				select {
+				case <-time.After(waitTime + time.Second):
+					continue
+				case <-c.ctx.Done():
+					return c.ctx.Err()
+				}
+			}
+
+			resp.Body.Close()
+			return fmt.Errorf("access forbidden (Status 403): the request was rejected by GitHub API or requires extended permissions")
+		}
+
+		// Not found
+		if resp.StatusCode == http.StatusNotFound {
+			resp.Body.Close()
+			return fmt.Errorf("repository not found or inaccessible — it may be private or you may not have permission")
+		}
+
+		// Unauthorized
+		if resp.StatusCode == http.StatusUnauthorized {
+			resp.Body.Close()
+			return fmt.Errorf("authentication failed (check your GITHUB_TOKEN)")
+		}
+
+		// Retry on 5xx
+		if resp.StatusCode >= 500 && resp.StatusCode <= 599 {
+			resp.Body.Close()
+			if attempt == maxRetries {
+				return fmt.Errorf("GitHub server error: %s", resp.Status)
+			}
+			backoff := time.Duration(1<<attempt) * time.Second
+			select {
+			case <-time.After(backoff):
+				continue
+			case <-c.ctx.Done():
+				return c.ctx.Err()
+			}
+		}
+
+		// Non-OK responses handled above, so decode on success
+		if resp.StatusCode != http.StatusOK {
+			errMsg := fmt.Errorf("GitHub API error: %s", resp.Status)
+			resp.Body.Close()
+			return errMsg
+		}
+
+		// Success
+		defer resp.Body.Close()
+		return json.NewDecoder(resp.Body).Decode(target)
 	}
 
-	if resp.StatusCode == http.StatusNotFound {
-		return fmt.Errorf("repository not found or inaccessible — it may be private or you may not have permission")
+	if lastErr != nil {
+		return lastErr
 	}
-
-	if resp.StatusCode == http.StatusUnauthorized {
-		return fmt.Errorf("authentication failed (check your GITHUB_TOKEN)")
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("GitHub API error: %s", resp.Status)
-	}
-
-	return json.NewDecoder(resp.Body).Decode(target)
+	return fmt.Errorf("request failed: %s", url)
 }
 
 // formatDuration formats a duration in a human-readable way
