@@ -59,32 +59,6 @@ The analysis includes:
 	},
 }
 
-// forecastCmd generates predictions for repository metrics
-var forecastCmd = &cobra.Command{
-	Use:   "forecast <owner>/<repo>",
-	Short: "Forecast repository health and risk metrics",
-	Long: `Generates predictions for repository evolution and risk trajectories:
-- Repository Health Forecast: 6-month health trajectory with confidence intervals
-- Maintainability Prediction: Estimated code maintainability trends
-- Contributor Risk: Burnout and attrition prediction for key contributors
-- Dependency Stability: Predicted dependency evolution and update frequency
-- Technical Debt Projection: Estimated debt accumulation patterns`,
-	Args: cobra.ExactArgs(1),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		repoURL := args[0]
-		fmt.Printf("Forecasting metrics for %s...\n", repoURL)
-		fmt.Println("[MVP] Forecasting not yet implemented.")
-		fmt.Println("This command will generate 6-month forecasts for:")
-		fmt.Println("  - Repository health")
-		fmt.Println("  - Maintainability")
-		fmt.Println("  - Contributor risks")
-		fmt.Println("  - Dependency stability")
-		fmt.Println()
-		fmt.Println("Feature coming soon!")
-		return fmt.Errorf("temporal forecast command not yet implemented")
-	},
-}
-
 // contributorsCmd analyzes contributor networks and evolution
 var contributorsCmd = &cobra.Command{
 	Use:   "contributors <owner>/<repo>",
@@ -194,7 +168,6 @@ func init() {
 
 	// Add subcommands to temporal
 	temporalCmd.AddCommand(analyzeTemporalCmd)
-	temporalCmd.AddCommand(forecastCmd)
 	temporalCmd.AddCommand(contributorsCmd)
 	temporalCmd.AddCommand(driftCmd)
 	temporalCmd.AddCommand(simulateCmd)

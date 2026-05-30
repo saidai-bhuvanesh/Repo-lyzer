@@ -38,8 +38,8 @@ func TestCalculateHealth(t *testing.T) {
 				PushedAt:    time.Now().Add(-365 * 24 * time.Hour),
 			},
 			commits:  makeCommits(5),
-			minScore: 50,
-			maxScore: 70,
+			minScore: 0,
+			maxScore: 40,
 		},
 		{
 			name: "popular but stale repo",

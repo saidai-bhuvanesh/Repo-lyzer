@@ -14,6 +14,7 @@ type IssueLabel struct {
 type Issue struct {
 	Number      int          `json:"number"`
 	Title       string       `json:"title"`
+	Body        string       `json:"body"`
 	State       string       `json:"state"`
 	CreatedAt   time.Time    `json:"created_at"`
 	UpdatedAt   time.Time    `json:"updated_at"`
