@@ -24,7 +24,9 @@ func TestRepositoryTrendsViewRendersTrendSections(t *testing.T) {
 	addCommit := func(date time.Time, login string) {
 		commit := github.Commit{}
 		commit.Commit.Author.Date = date
-		commit.Author = &struct{ Login string `json:"login"` }{Login: login}
+		commit.Author = &struct {
+			Login string `json:"login"`
+		}{Login: login}
 		commits = append(commits, commit)
 	}
 

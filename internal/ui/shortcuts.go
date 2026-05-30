@@ -48,7 +48,7 @@ func GetInputShortcuts() []KeyboardShortcut {
 func GetDashboardShortcuts() []KeyboardShortcut {
 	return []KeyboardShortcut{
 		{Key: "←/→", AltKey: "h/l", Description: "Switch tabs", Category: "Navigation"},
-		{Key: "1-8", AltKey: "", Description: "Jump to tab", Category: "Navigation"},
+		{Key: "1-8", AltKey: "", Description: "Jump to visible tabs", Category: "Navigation"},
 		{Key: "e", AltKey: "", Description: "Export menu", Category: "Actions"},
 		{Key: "j", AltKey: "", Description: "Export JSON", Category: "Actions"},
 		{Key: "m", AltKey: "", Description: "Export Markdown", Category: "Actions"},

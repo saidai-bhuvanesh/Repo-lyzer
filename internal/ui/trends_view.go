@@ -12,10 +12,10 @@ import (
 )
 
 type monthlyTrendPoint struct {
-	Month           time.Time
-	CommitCount     int
+	Month            time.Time
+	CommitCount      int
 	ContributorCount int
-	HealthScore     int
+	HealthScore      int
 }
 
 func (m DashboardModel) repositoryTrendsView() string {
@@ -134,7 +134,7 @@ func (m DashboardModel) buildMonthlyTrendSeries(limit int) []monthlyTrendPoint {
 		}
 		bucket.commitCount++
 
-		contributorKey := commit.SHA
+		contributorKey := ""
 		if commit.Author != nil && strings.TrimSpace(commit.Author.Login) != "" {
 			contributorKey = commit.Author.Login
 		}

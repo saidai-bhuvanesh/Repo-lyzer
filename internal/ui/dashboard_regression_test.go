@@ -7,6 +7,7 @@ import (
 
 	"github.com/agnivo988/Repo-lyzer/internal/analyzer"
 	"github.com/agnivo988/Repo-lyzer/internal/github"
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 func TestDashboardQualityView_KeepsTopTabsVisibleWhenContentOverflows(t *testing.T) {
@@ -81,7 +82,9 @@ func TestDashboardOverviewViewShowsRepositoryTrends(t *testing.T) {
 	addCommit := func(date time.Time, login string) {
 		commit := github.Commit{}
 		commit.Commit.Author.Date = date
-		commit.Author = &struct{ Login string `json:"login"` }{Login: login}
+		commit.Author = &struct {
+			Login string `json:"login"`
+		}{Login: login}
 		commits = append(commits, commit)
 	}
 
@@ -110,6 +113,32 @@ func TestDashboardOverviewViewShowsRepositoryTrends(t *testing.T) {
 	for _, expected := range []string{"Repository Trends", "Health:", "Contributors:", "Forecast:"} {
 		if !strings.Contains(view, expected) {
 			t.Fatalf("overview view missing %q:\n%s", expected, view)
+		}
+	}
+}
+
+func TestDashboardNumericTabsFollowVisibleOrder(t *testing.T) {
+	model := NewDashboardModel()
+
+	checks := []struct {
+		key  string
+		want dashboardView
+	}{
+		{key: "1", want: viewOverview},
+		{key: "2", want: viewQualityDashboard},
+		{key: "3", want: viewRepo},
+		{key: "4", want: viewLanguages},
+		{key: "5", want: viewActivity},
+		{key: "6", want: viewTrends},
+		{key: "7", want: viewContributors},
+		{key: "8", want: viewContributorInsights},
+	}
+
+	for _, check := range checks {
+		updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(check.key)})
+		model = updated.(DashboardModel)
+		if model.currentView != check.want {
+			t.Fatalf("key %q set view %v, want %v", check.key, model.currentView, check.want)
 		}
 	}
 }
