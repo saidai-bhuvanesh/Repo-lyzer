@@ -1,5 +1,6 @@
 module github.com/agnivo988/Repo-lyzer
 
+
 go 1.24.2
 
 require (
