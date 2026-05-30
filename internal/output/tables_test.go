@@ -51,7 +51,7 @@ func TestPrintRepo(t *testing.T) {
 		"STARS",
 		"FORKS",
 		"OPEN ISSUES",
-		"owner/example",
+		"OWNER/EXAMPLE",
 		"120",
 		"18",
 		"7",
