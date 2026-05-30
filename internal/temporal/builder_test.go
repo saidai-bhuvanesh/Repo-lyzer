@@ -214,6 +214,7 @@ func TestBuildTimelineFromGitHub_ExclusiveMonthEndBoundaries(t *testing.T) {
 	withStubbedTimelineData(t, func(base time.Time) {
 		monthEnd := time.Date(2024, 7, 1, 0, 0, 0, 0, time.UTC)
 		commits := []github.Commit{
+			makeCommit(time.Date(2024, 6, 30, 23, 59, 0, 0, time.UTC), "alice", "c0"),
 			makeCommit(monthEnd, "alice", "c1"),
 		}
 		issues := []github.Issue{
@@ -233,8 +234,8 @@ func TestBuildTimelineFromGitHub_ExclusiveMonthEndBoundaries(t *testing.T) {
 		}
 
 		snapshot := timeline.Snapshots[0]
-		if snapshot.Metrics.CommitCount != 0 {
-			t.Fatalf("expected 0 commits at month end boundary, got %d", snapshot.Metrics.CommitCount)
+		if snapshot.Metrics.CommitCount != 1 {
+			t.Fatalf("expected only the pre-boundary commit to count, got %d", snapshot.Metrics.CommitCount)
 		}
 		if snapshot.Metrics.IssuesOpen != 0 {
 			t.Fatalf("expected 0 open issues at month end boundary, got %d", snapshot.Metrics.IssuesOpen)
