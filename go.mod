@@ -1,6 +1,6 @@
 module github.com/agnivo988/Repo-lyzer
 
-go 1.25.0
+go 1.24.0
 
 require (
 	github.com/charmbracelet/bubbles v1.0.0
