@@ -182,6 +182,20 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ErrorMsg:
 		m.err = error(msg)
 		return m, nil
+
+	case string:
+		// Global string messages from sub-models (dashboard returns "switch_to_tree")
+		if msg == "switch_to_tree" {
+			if len(m.dashboard.data.FileTree) > 0 {
+				m.tree = NewTreeModel(&m.dashboard.data)
+			} else {
+				m.tree = NewTreeModel(nil)
+			}
+			m.tree.width = m.windowWidth
+			m.tree.height = m.windowHeight
+			m.state = stateTree
+			return m, nil
+		}
 	}
 
 	// Delegate to current state's sub-model
