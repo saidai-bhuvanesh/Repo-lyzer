@@ -21,6 +21,7 @@ const (
 	viewRepo
 	viewLanguages
 	viewActivity
+	viewTrends
 	viewContributors
 	viewContributorInsights
 	viewContributorActivity
@@ -185,6 +186,9 @@ func (m DashboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "f":
 			return m, func() tea.Msg { return "switch_to_tree" }
 
+		case "z":
+			m.currentView = viewTrends
+
 		case "r":
 			if m.data.Repo != nil {
 				return m, func() tea.Msg { return "refresh_data" }
@@ -270,6 +274,8 @@ func (m DashboardModel) View() string {
 		content = m.languagesView()
 	case viewActivity:
 		content = m.activityView()
+	case viewTrends:
+		content = m.repositoryTrendsView()
 	case viewContributors:
 		content = m.contributorsView()
 	case viewContributorInsights:
@@ -328,7 +334,7 @@ func (m DashboardModel) View() string {
 }
 
 func (m DashboardModel) renderTabs() string {
-	views := []string{"Overview", "Quality", "Repo", "Langs", "Activity", "Contribs", "Insights", "Engagement", "Deps", "Security", "Recruiter", "Maintainer", "API"}
+	views := []string{"Overview", "Quality", "Repo", "Langs", "Activity", "Trends", "Contribs", "Insights", "Engagement", "Deps", "Security", "Recruiter", "Maintainer", "API"}
 
 	var renderedTabs []string
 
@@ -420,14 +426,24 @@ func (m DashboardModel) overviewView() string {
 		bottomPanel = riskPanel
 	}
 
-	return lipgloss.JoinVertical(
-		lipgloss.Left,
-		lipgloss.JoinHorizontal(lipgloss.Center, header, subHeader),
-		"\n",
-		lipgloss.JoinHorizontal(lipgloss.Top, metricsBox, chartBox),
-		"\n",
-		bottomPanel,
-	)
+	trendSeries := m.buildMonthlyTrendSeries(4)
+	trendsPanel := m.repositoryTrendsSummaryCard(trendSeries)
+
+	panels := []string{
+		lipgloss.JoinVertical(
+			lipgloss.Left,
+			lipgloss.JoinHorizontal(lipgloss.Center, header, subHeader),
+			"\n",
+			lipgloss.JoinHorizontal(lipgloss.Top, metricsBox, chartBox),
+			"\n",
+			bottomPanel,
+		),
+	}
+	if trendsPanel != "" {
+		panels = append(panels, "\n", trendsPanel)
+	}
+
+	return lipgloss.JoinVertical(lipgloss.Left, panels...)
 
 }
 

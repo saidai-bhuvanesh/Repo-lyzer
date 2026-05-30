@@ -52,10 +52,14 @@ func TestRunTrendsForecastOutputsJSON(t *testing.T) {
 
 	cmd := &cobra.Command{}
 	cmd.Flags().Bool("forecast", false, "")
+	cmd.Flags().Bool("json", false, "")
 	cmd.Flags().String("model", "linear", "")
 	cmd.Flags().Int("months", 6, "")
 	if err := cmd.Flags().Set("forecast", "true"); err != nil {
 		t.Fatalf("set forecast flag: %v", err)
+	}
+	if err := cmd.Flags().Set("json", "true"); err != nil {
+		t.Fatalf("set json flag: %v", err)
 	}
 	if err := cmd.Flags().Set("model", "linear"); err != nil {
 		t.Fatalf("set model flag: %v", err)
@@ -86,7 +90,7 @@ func TestRunTrendsForecastOutputsJSON(t *testing.T) {
 	}
 
 	var payload struct {
-		CurrentHealth int `json:"current_health"`
+		CurrentHealth int    `json:"current_health"`
 		ForecastModel string `json:"forecast_model"`
 		Predictions   []struct {
 			Method string `json:"method"`

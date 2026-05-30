@@ -61,3 +61,55 @@ func TestDashboardQualityView_KeepsTopTabsVisibleWhenContentOverflows(t *testing
 		t.Fatalf("top tabs not visible in quality view output:\n%s", view)
 	}
 }
+
+func TestDashboardOverviewViewShowsRepositoryTrends(t *testing.T) {
+	model := NewDashboardModel()
+	model.currentView = viewOverview
+	model.width = 80
+	model.height = 18
+
+	repo := &github.Repo{
+		FullName:      "owner/repo",
+		Description:   "Regression test repository",
+		DefaultBranch: "main",
+		HTMLURL:       "https://github.com/owner/repo",
+		CreatedAt:     time.Now(),
+		PushedAt:      time.Now(),
+	}
+
+	commits := make([]github.Commit, 0)
+	addCommit := func(date time.Time, login string) {
+		commit := github.Commit{}
+		commit.Commit.Author.Date = date
+		commit.Author = &struct{ Login string `json:"login"` }{Login: login}
+		commits = append(commits, commit)
+	}
+
+	addCommit(time.Date(2026, 1, 5, 0, 0, 0, 0, time.UTC), "alice")
+	addCommit(time.Date(2026, 2, 5, 0, 0, 0, 0, time.UTC), "alice")
+	addCommit(time.Date(2026, 2, 10, 0, 0, 0, 0, time.UTC), "bob")
+	addCommit(time.Date(2026, 3, 5, 0, 0, 0, 0, time.UTC), "alice")
+	addCommit(time.Date(2026, 3, 10, 0, 0, 0, 0, time.UTC), "bob")
+	addCommit(time.Date(2026, 4, 15, 0, 0, 0, 0, time.UTC), "carol")
+
+	model.SetData(AnalysisResult{
+		Repo:    repo,
+		Commits: commits,
+		Contributors: []github.Contributor{
+			{Login: "alice", Commits: 3},
+			{Login: "bob", Commits: 2},
+			{Login: "carol", Commits: 1},
+		},
+		HealthScore:   78,
+		BusFactor:     2,
+		BusRisk:       "Medium",
+		MaturityLevel: "Prototype",
+	})
+
+	view := model.View()
+	for _, expected := range []string{"Repository Trends", "Health:", "Contributors:", "Forecast:"} {
+		if !strings.Contains(view, expected) {
+			t.Fatalf("overview view missing %q:\n%s", expected, view)
+		}
+	}
+}

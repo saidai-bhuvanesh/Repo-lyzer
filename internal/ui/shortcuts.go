@@ -56,6 +56,7 @@ func GetDashboardShortcuts() []KeyboardShortcut {
 		{Key: "x", AltKey: "", Description: "Export HTML", Category: "Actions"},
 		{Key: "p", AltKey: "", Description: "Export PDF", Category: "Actions"},
 		{Key: "f", AltKey: "", Description: "File tree", Category: "Actions"},
+		{Key: "z", AltKey: "", Description: "Show trends", Category: "Actions"},
 		{Key: "r", AltKey: "F5", Description: "Refresh data", Category: "Actions"},
 		{Key: "b", AltKey: "", Description: "Toggle bookmark", Category: "Actions"},
 		{Key: "t", AltKey: "", Description: "Cycle theme", Category: "Display"},
