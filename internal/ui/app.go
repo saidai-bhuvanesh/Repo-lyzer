@@ -122,7 +122,9 @@ func NewMainModel(cache *cache.Cache, config *config.AppSettings) MainModel {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
-	return MainModel{
+
+	// Restore last analysis result so it persists across page refreshes
+	model := MainModel{
 		state:          stateMenu,
 		menu:           NewMenuModel(),
 		input:          NewInputModel(),
@@ -143,6 +145,16 @@ func NewMainModel(cache *cache.Cache, config *config.AppSettings) MainModel {
 		appConfig:      config,
 		spinner:        s,
 	}
+
+	// Restore previous analysis result from disk so it survives refreshes
+	if saved, err := LoadCurrentAnalysis(); err == nil && saved != nil {
+		model.dashboard.SetData(*saved)
+		model.dashboard.SetCacheStatus("cached")
+		model.state = stateDashboard
+		model.cacheStatus = "cached"
+	}
+
+	return model
 }
 
 func analysisTypeForSubmenu(index int) string {
@@ -403,6 +415,10 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.history.Entries = history.Entries
 			m.history.AddEntry(result)
 			m.history.Save()
+			// Persist current analysis so it survives refresh
+			if err := SaveCurrentAnalysis(result); err != nil {
+				log.Printf("Failed to persist current analysis: %v", err)
+			}
 		}
 		if cachedResult, ok := msg.(CachedAnalysisResult); ok {
 			m.dashboard.SetData(cachedResult.Result)
@@ -416,6 +432,10 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.history.Entries = history.Entries
 			m.history.AddEntry(cachedResult.Result)
 			m.history.Save()
+			// Persist current analysis so it survives refresh
+			if err := SaveCurrentAnalysis(cachedResult.Result); err != nil {
+				log.Printf("Failed to persist cached analysis: %v", err)
+			}
 		}
 		if err, ok := msg.(error); ok {
 			m.progress = nil
@@ -761,7 +781,11 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if m.dashboard.data.Repo != nil && m.dashboard.data.Repo.FullName != "" {
 					repoName = m.dashboard.data.Repo.FullName
 				}
-				m.fileEdit = NewFileEditModel(m.tree.SelectedPath, repoName)
+				defaultBranch := "main"
+				if m.dashboard.data.Repo != nil && m.dashboard.data.Repo.DefaultBranch != "" {
+					defaultBranch = m.dashboard.data.Repo.DefaultBranch
+				}
+				m.fileEdit = NewFileEditModel(m.tree.SelectedPath, repoName, defaultBranch)
 
 				// Check ownership
 				isOwner := m.checkOwnership()
@@ -960,16 +984,17 @@ func (m MainModel) analyzeRepo(ctx context.Context, repoName string) tea.Cmd {
 		}
 
 		// Build current file hash map for incremental analysis
-		currentHashes := make(map[string]string)
+		currentHashes := make(map[string]cache.FileMetadata)
 
 		for _, file := range fileTree {
-			// Skip directories
 			if file.Type != "blob" {
 				continue
 			}
 
-			// Store filepath -> SHA mapping
-			currentHashes[file.Path] = file.Sha
+			currentHashes[file.Path] = cache.FileMetadata{
+				SHA:        file.Sha,
+				AnalyzedAt: time.Now(),
+			}
 		}
 
 		// Compare with cached incremental metadata
@@ -979,11 +1004,11 @@ func (m MainModel) analyzeRepo(ctx context.Context, repoName string) tea.Cmd {
 			if entry, found := m.cache.GetWithoutTTLExpiration(repoName); found {
 				if entry.IncrementalMetadata != nil {
 
-					for path, hash := range currentHashes {
-						cachedHash, exists := entry.IncrementalMetadata[path]
+					for path, currentMeta := range currentHashes {
+						cachedMeta, exists := entry.IncrementalMetadata[path]
 
 						// File is new or modified
-						if !exists || cachedHash != hash {
+						if !exists || cachedMeta.SHA != currentMeta.SHA {
 							changedFiles = append(changedFiles, path)
 						}
 					}

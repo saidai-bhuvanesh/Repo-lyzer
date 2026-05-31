@@ -105,7 +105,9 @@ func LoadSettings() (*AppSettings, error) {
 	if err != nil {
 		settings := applyEnvOverrides(DefaultSettings())
 		if settings.GitHubToken == "" {
-			if token, secureErr := loadTokenFromSecureStore(); secureErr == nil {
+			if token, secureErr := loadTokenFromSecureStore(); secureErr != nil {
+				return settings, secureErr
+			} else {
 				settings.GitHubToken = token
 			}
 		}
@@ -128,7 +130,9 @@ func LoadSettings() (*AppSettings, error) {
 
 	settings = applyEnvOverrides(settings)
 	if settings.GitHubToken == "" {
-		if token, secureErr := loadTokenFromSecureStore(); secureErr == nil {
+		if token, secureErr := loadTokenFromSecureStore(); secureErr != nil {
+			return settings, secureErr
+		} else {
 			settings.GitHubToken = token
 		}
 	}

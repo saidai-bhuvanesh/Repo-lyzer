@@ -14,6 +14,7 @@ type PullRequest struct {
 	Title             string     `json:"title"`
 	State             string     `json:"state"`
 	CreatedAt         time.Time  `json:"created_at"`
+	UpdatedAt         time.Time  `json:"updated_at"`
 	MergedAt          *time.Time `json:"merged_at"`
 	ClosedAt          *time.Time `json:"closed_at"`
 	User              User       `json:"user"`
