@@ -259,9 +259,16 @@ func TestCache_IncrementalMetadata(t *testing.T) {
 
 	testRepo := "test/metadata-repo"
 	testData := "some-analysis"
-	metadata := map[string]string{
-		"file1.go": "hash1",
-		"file2.go": "hash2",
+
+	metadata := map[string]FileMetadata{
+		"file1.go": {
+			SHA:        "hash1",
+			AnalyzedAt: time.Now(),
+		},
+		"file2.go": {
+			SHA:        "hash2",
+			AnalyzedAt: time.Now(),
+		},
 	}
 
 	err = cache.SetWithMetadata(testRepo, testData, metadata)
@@ -278,7 +285,8 @@ func TestCache_IncrementalMetadata(t *testing.T) {
 		t.Fatal("IncrementalMetadata was nil")
 	}
 
-	if entry.IncrementalMetadata["file1.go"] != "hash1" || entry.IncrementalMetadata["file2.go"] != "hash2" {
+	if entry.IncrementalMetadata["file1.go"].SHA != "hash1" ||
+		entry.IncrementalMetadata["file2.go"].SHA != "hash2" {
 		t.Errorf("IncrementalMetadata mismatch: %v", entry.IncrementalMetadata)
 	}
 
@@ -301,17 +309,21 @@ func TestCache_GetWithoutTTLExpiration(t *testing.T) {
 	}
 
 	// Should not be found via normal Get()
-	_, found := cache.Get(testRepo)
-	if found {
-		t.Error("Get() should not find expired entry")
-	}
-
 	// Should be found via GetWithoutTTLExpiration()
 	entry, found := cache.GetWithoutTTLExpiration(testRepo)
 	if !found {
 		t.Fatal("GetWithoutTTLExpiration() did not find expired entry")
 	}
 
+	if entry == nil {
+		t.Fatal("GetWithoutTTLExpiration() returned nil entry")
+	}
+
+	// Normal Get() should reject expired entries
+	_, found = cache.Get(testRepo)
+	if found {
+		t.Error("Get() should not find expired entry")
+	}
 	if entry == nil {
 		t.Fatal("GetWithoutTTLExpiration() returned nil entry")
 	}

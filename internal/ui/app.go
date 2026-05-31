@@ -964,16 +964,17 @@ func (m MainModel) analyzeRepo(ctx context.Context, repoName string) tea.Cmd {
 		}
 
 		// Build current file hash map for incremental analysis
-		currentHashes := make(map[string]string)
+		currentHashes := make(map[string]cache.FileMetadata)
 
 		for _, file := range fileTree {
-			// Skip directories
 			if file.Type != "blob" {
 				continue
 			}
 
-			// Store filepath -> SHA mapping
-			currentHashes[file.Path] = file.Sha
+			currentHashes[file.Path] = cache.FileMetadata{
+				SHA:        file.Sha,
+				AnalyzedAt: time.Now(),
+			}
 		}
 
 		// Compare with cached incremental metadata
@@ -983,11 +984,11 @@ func (m MainModel) analyzeRepo(ctx context.Context, repoName string) tea.Cmd {
 			if entry, found := m.cache.GetWithoutTTLExpiration(repoName); found {
 				if entry.IncrementalMetadata != nil {
 
-					for path, hash := range currentHashes {
-						cachedHash, exists := entry.IncrementalMetadata[path]
+					for path, currentMeta := range currentHashes {
+						cachedMeta, exists := entry.IncrementalMetadata[path]
 
 						// File is new or modified
-						if !exists || cachedHash != hash {
+						if !exists || cachedMeta.SHA != currentMeta.SHA {
 							changedFiles = append(changedFiles, path)
 						}
 					}
