@@ -38,7 +38,7 @@ Examples:
   repo-lyzer summary vuejs/vue
   repo-lyzer summary angular/angular`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if len(args) == 0 {
+		if len(args) != 1 {
 			fmt.Println("Error: please provide a repository name to analyze.")
 			fmt.Println("Usage:   repo-lyzer summary <repository>")
 			fmt.Println("Example: repo-lyzer summary golang/go")
