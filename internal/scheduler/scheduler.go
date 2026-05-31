@@ -4,8 +4,8 @@
 package scheduler
 
 import (
-	"context"
 	"bytes"
+	"context"
 
 	"encoding/json"
 	"errors"
@@ -134,10 +134,10 @@ func (s *Scheduler) scheduleJob(job config.ScheduledJob) error {
 			return
 		}
 		log.Printf("Executing scheduled job: %s for %s/%s", job.ID, job.Owner, job.Repo)
-		
+
 		s.wg.Add(1)
 		defer s.wg.Done()
-		
+
 		if err := s.executeJobWithRetry(job); err != nil {
 			log.Printf("Job execution failed after retries: %v", err)
 		}
@@ -484,8 +484,8 @@ func (s *Scheduler) isInCooldown() bool {
 	}
 	// Reset cooldown if expired
 	if s.cooldownActive && time.Now().After(s.cooldownUntil) {
-		 s.cooldownActive = false
-		 s.failureStreak = 0
+		s.cooldownActive = false
+		s.failureStreak = 0
 	}
 	return false
 }
@@ -497,10 +497,10 @@ func (s *Scheduler) recordFailure() {
 	s.failureStreak++
 	if s.failureStreak >= 3 { // threshold
 		if s.metrics != nil {
-			 s.metrics.IncCooldownTrigger()
+			s.metrics.IncCooldownTrigger()
 		}
-		 s.cooldownActive = true
-		 s.cooldownUntil = time.Now().Add(10 * time.Second) // cooldown duration
+		s.cooldownActive = true
+		s.cooldownUntil = time.Now().Add(10 * time.Second) // cooldown duration
 	}
 }
 
@@ -525,25 +525,29 @@ func (s *Scheduler) executeJobWithRetry(job config.ScheduledJob) error {
 		err := s.executeJob(job)
 		if err == nil {
 			// success
-			 s.resetFailureStreak()
+			s.resetFailureStreak()
 			return nil
 		}
 
 		// Check for timeout
 		if errors.Is(err, context.DeadlineExceeded) {
-			 if s.metrics != nil { s.metrics.IncTimeoutCount() }
-			 s.recordFailure()
+			if s.metrics != nil {
+				s.metrics.IncTimeoutCount()
+			}
+			s.recordFailure()
 			return err
 		}
 
 		attempt++
 		if attempt > maxRetries {
-			 s.recordFailure()
+			s.recordFailure()
 			return err
 		}
 
 		// Record retry metric
-		if s.metrics != nil { s.metrics.IncRetryCount() }
+		if s.metrics != nil {
+			s.metrics.IncRetryCount()
+		}
 		// Backoff with jitter
 		jitter := time.Duration(rand.Int63n(int64(backoff)))
 		time.Sleep(backoff + jitter)
