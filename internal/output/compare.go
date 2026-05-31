@@ -95,7 +95,7 @@ func RenderCompareTerminal(report CompareReport) string {
 	}
 
 	table := tablewriter.NewWriter(&buf)
-	table.Header([]string{"Metric", report.Repo1.FullName, report.Repo2.FullName})
+	table.Header("Metric", report.Repo1.FullName, report.Repo2.FullName)
 
 	table.Append([]string{"⭐ Stars",
 		fmt.Sprintf("%d", report.Repo1.Stars),
