@@ -44,16 +44,16 @@ func (p *Predictor) ForecastHealth(commits []github.Commit, months int) (*Foreca
 
 	// TODO: Implement health forecasting logic
 	fmt.Println("[EXPERIMENTAL] Health forecasting module is partially implemented")
-		return &ForecastResult{
-    Metric:          "health",
-    Predictions:     []Prediction{},
-    Trend:           "stable",
-    RiskLevel:       "medium",
-    Recommendations: []string{"Health forecasting module is currently experimental"},
-    ConfidenceScore: 0.25,
-    BaselineMean:    0,
-    BaselineStdDev:  0,
-}, nil
+	return &ForecastResult{
+		Metric:          "health",
+		Predictions:     []Prediction{},
+		Trend:           "stable",
+		RiskLevel:       "medium",
+		Recommendations: []string{"Health forecasting module is currently experimental"},
+		ConfidenceScore: 0.25,
+		BaselineMean:    0,
+		BaselineStdDev:  0,
+	}, nil
 }
 
 // ForecastMaturity generates predictions for repository maturity.
@@ -86,7 +86,7 @@ func (p *Predictor) ForecastMaturity(timeline interface{}, months int) (*Forecas
 		ConfidenceScore: 0.20,
 		BaselineMean:    0,
 		BaselineStdDev:  0,
-}, nil
+	}, nil
 }
 
 // ForecastContributorRisk generates contributor-related risk predictions.
