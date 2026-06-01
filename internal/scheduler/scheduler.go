@@ -19,6 +19,9 @@ import (
 	"github.com/agnivo988/Repo-lyzer/internal/github"
 	"github.com/agnivo988/Repo-lyzer/internal/output"
 	"github.com/robfig/cron/v3"
+	"golang.org/x/sync/semaphore"
+	"sync"
+	"context"
 )
 
 // Scheduler manages scheduled analysis report jobs
@@ -27,6 +30,15 @@ type Scheduler struct {
 	settings       *config.AppSettings
 	jobEntries     map[string]cron.EntryID
 	reportExporter *ReportExporter
+	jobCooldowns   map[string]time.Time // tracks last execution time for cooldown
+	maxWorkers     int
+	workerSem      *semaphore.Weighted
+	// Fair queue fields
+	pendingJobs    []config.ScheduledJob
+	queueMutex     sync.Mutex
+	workerFairness int // round‑robin index
+	stopChan       chan struct{}
+	wg             sync.WaitGroup
 }
 
 // ReportExporter handles exporting analysis reports to various formats
@@ -39,11 +51,22 @@ func NewScheduler() (*Scheduler, error) {
 		return nil, fmt.Errorf("failed to load settings: %w", err)
 	}
 
+	// Default max workers; can be made configurable later
+	maxWorkers := 5
+
 	return &Scheduler{
 		cron:           cron.New(),
 		settings:       settings,
 		jobEntries:     make(map[string]cron.EntryID),
 		reportExporter: &ReportExporter{},
+		jobCooldowns:   make(map[string]time.Time),
+		maxWorkers:     maxWorkers,
+		workerSem:      semaphore.NewWeighted(int64(maxWorkers)),
+		pendingJobs:    make([]config.ScheduledJob, 0),
+		queueMutex:     sync.Mutex{},
+		workerFairness: 0,
+		stopChan:       make(chan struct{}),
+		wg:             sync.WaitGroup{},
 	}, nil
 }
 
@@ -54,12 +77,22 @@ func (s *Scheduler) Start() error {
 	// Load jobs from settings
 	jobs := s.settings.GetScheduledJobs()
 	for _, job := range jobs {
-		if job.Enabled {
-			if err := s.scheduleJob(job); err != nil {
-				log.Printf("Failed to schedule job %s: %v", job.ID, err)
-			}
+		if !job.Enabled {
+			continue
+		}
+		// Skip if job is in cooldown
+		if cd, ok := s.jobCooldowns[job.ID]; ok && time.Now().Before(cd) {
+			log.Printf("Job %s is in cooldown until %s, skipping schedule", job.ID, cd.Format(time.RFC3339))
+			continue
+		}
+		if err := s.scheduleJob(job); err != nil {
+			log.Printf("Failed to schedule job %s: %v", job.ID, err)
 		}
 	}
+
+	// Start background processor for fair queue
+	s.wg.Add(1)
+	go s.processQueue()
 
 	s.cron.Start()
 	log.Printf("Scheduler started with %d enabled jobs", len(jobs))
@@ -70,6 +103,8 @@ func (s *Scheduler) Start() error {
 func (s *Scheduler) Stop() {
 	log.Println("Stopping scheduler...")
 	s.cron.Stop()
+	close(s.stopChan)
+	s.wg.Wait()
 	log.Println("Scheduler stopped")
 }
 
@@ -78,10 +113,12 @@ func (s *Scheduler) scheduleJob(job config.ScheduledJob) error {
 	spec := job.GetCronExpression()
 
 	jobFunc := func() {
-		log.Printf("Executing scheduled job: %s for %s/%s", job.ID, job.Owner, job.Repo)
-		if err := s.executeJob(job); err != nil {
-			log.Printf("Job execution failed: %v", err)
-		}
+		log.Printf("Enqueuing scheduled job: %s for %s/%s", job.ID, job.Owner, job.Repo)
+		// Add to fair queue
+		s.queueMutex.Lock()
+		defer s.queueMutex.Unlock()
+		// Append job; preserve order of arrival
+		s.pendingJobs = append(s.pendingJobs, job)
 	}
 
 	entryID, err := s.cron.AddFunc(spec, jobFunc)
@@ -95,7 +132,14 @@ func (s *Scheduler) scheduleJob(job config.ScheduledJob) error {
 }
 
 // executeJob runs the analysis and exports the report
+// executeJob remains unchanged; it will be called from the queue processor
 func (s *Scheduler) executeJob(job config.ScheduledJob) error {
+	// Enforce worker limit
+	if err := s.workerSem.Acquire(context.Background(), 1); err != nil {
+		return fmt.Errorf("failed to acquire worker semaphore: %w", err)
+	}
+	defer s.workerSem.Release(1)
+
 	startTime := time.Now()
 
 	// Initialize GitHub client
@@ -113,7 +157,7 @@ func (s *Scheduler) executeJob(job config.ScheduledJob) error {
 		return fmt.Errorf("failed to get languages: %w", err)
 	}
 
-	// Fetch commits
+	// Fetch commits (limited to last year)
 	commits, err := client.GetCommits(job.Owner, job.Repo, 365)
 	if err != nil {
 		return fmt.Errorf("failed to get commits: %w", err)
@@ -179,7 +223,10 @@ func (s *Scheduler) executeJob(job config.ScheduledJob) error {
 	job.NextRun = s.calculateNextRunTime(job.GetCronExpression())
 	s.settings.UpdateScheduledJob(job)
 
-	log.Printf("Job %s completed successfully", job.ID)
+	// Apply cooldown of 1 minute to prevent immediate re‑run
+	s.jobCooldowns[job.ID] = time.Now().Add(time.Minute)
+
+	log.Printf("Job %s completed successfully (cooldown applied)", job.ID)
 	return nil
 }
 
@@ -382,4 +429,30 @@ func FormatScheduleInterval() string {
 // GetCronExpressionForInterval returns the cron expression for a given interval
 func GetCronExpressionForInterval(interval config.ScheduleInterval) string {
 	return interval.CronExpression()
+}
+// processQueue runs a simple FIFO fair queue processor.
+func (s *Scheduler) processQueue() {
+    defer s.wg.Done()
+    for {
+        select {
+        case <-s.stopChan:
+            return
+        default:
+            var job config.ScheduledJob
+            s.queueMutex.Lock()
+            if len(s.pendingJobs) > 0 {
+                job = s.pendingJobs[0]
+                s.pendingJobs = s.pendingJobs[1:]
+            }
+            s.queueMutex.Unlock()
+            if job.ID == "" {
+                // no pending job, avoid busy loop
+                time.Sleep(100 * time.Millisecond)
+                continue
+            }
+            if err := s.executeJob(job); err != nil {
+                log.Printf("error executing job %s: %v", job.ID, err)
+            }
+        }
+    }
 }

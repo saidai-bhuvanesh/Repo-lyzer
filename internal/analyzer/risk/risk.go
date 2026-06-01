@@ -1,13 +1,13 @@
 package risk
 
 import (
-	"github.com/agnivo988/Repo-lyzer/internal/analyzer/core"
+	"github.com/agnivo988/Repo-lyzer/internal/analyzer"
 	"github.com/agnivo988/Repo-lyzer/internal/github"
 )
 
 // RiskAnalyzer orchestrates risk metrics across the repository
 type RiskAnalyzer struct {
-	Engine *core.WeightedScoreEngine
+	Engine *analyzer.WeightedScoreEngine
 }
 
 // NewRiskAnalyzer initializes a risk analyzer with inverted thresholds
@@ -22,13 +22,13 @@ func NewRiskAnalyzer() *RiskAnalyzer {
 
 	// Since our core engine returns 'Excellent' for highest scores, we need to map categories correctly.
 	// We'll create custom wrapper functions below to translate the core engine output to Risk terminology.
-	thresholds := core.Thresholds{
+	thresholds := analyzer.Thresholds{
 		Warning:   50,
 		Healthy:   0,  // Technically not used directly since we remap
 		Excellent: 80, // We will map Excellent to Critical for risk
 	}
 	return &RiskAnalyzer{
-		Engine: core.NewWeightedScoreEngine(100.0, thresholds),
+		Engine: analyzer.NewWeightedScoreEngine(100.0, thresholds),
 	}
 }
 
@@ -54,14 +54,14 @@ func (r *RiskAnalyzer) TranslateScoreToRisk(score float64) RiskCategory {
 
 // CalculateOverallRisk computes a rudimentary base risk score (to be expanded by sub-analyzers)
 func (r *RiskAnalyzer) CalculateOverallRisk(repo *github.Repo, commits []github.Commit) (float64, RiskCategory) {
-	metrics := []core.Metric{}
+	metrics := []analyzer.Metric{}
 
 	// Basic placeholder risk: If a repo is archived, it's immediately high risk
 	archivedScore := 0.0
 	if repo.Archived {
 		archivedScore = 100.0 // Max risk
 	}
-	metrics = append(metrics, core.Metric{
+	metrics = append(metrics, analyzer.Metric{
 		Name:        "Archived Status",
 		Score:       archivedScore,
 		Weight:      5.0,

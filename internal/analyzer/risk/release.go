@@ -3,30 +3,30 @@ package risk
 import (
 	"time"
 
-	"github.com/agnivo988/Repo-lyzer/internal/analyzer/core"
+	"github.com/agnivo988/Repo-lyzer/internal/analyzer"
 	"github.com/agnivo988/Repo-lyzer/internal/github"
 )
 
 // ReleaseRiskAnalyzer assesses the risks associated with missing dependencies locks and stale releases
 type ReleaseRiskAnalyzer struct {
-	Engine *core.WeightedScoreEngine
+	Engine *analyzer.WeightedScoreEngine
 }
 
 // NewReleaseRiskAnalyzer initializes the release risk analyzer
 func NewReleaseRiskAnalyzer() *ReleaseRiskAnalyzer {
-	thresholds := core.Thresholds{
+	thresholds := analyzer.Thresholds{
 		Warning:   40,
 		Healthy:   0,
 		Excellent: 80,
 	}
 	return &ReleaseRiskAnalyzer{
-		Engine: core.NewWeightedScoreEngine(100.0, thresholds),
+		Engine: analyzer.NewWeightedScoreEngine(100.0, thresholds),
 	}
 }
 
 // AnalyzeReleaseAndDependencyRisk evaluates release cadence and lockfile hygiene
 func (r *ReleaseRiskAnalyzer) AnalyzeReleaseAndDependencyRisk(releases []github.Release, tree []github.TreeEntry) (float64, RiskCategory) {
-	metrics := []core.Metric{}
+	metrics := []analyzer.Metric{}
 
 	// 1. Dependency Lockfile Presence (Hygiene Risk)
 	// If a project doesn't pin its dependencies, it's highly susceptible to supply chain attacks
@@ -49,7 +49,7 @@ func (r *ReleaseRiskAnalyzer) AnalyzeReleaseAndDependencyRisk(releases []github.
 		depRiskScore = 0.0 // Stable, lockfile exists
 	}
 
-	metrics = append(metrics, core.Metric{
+	metrics = append(metrics, analyzer.Metric{
 		Name:        "Missing Dependency Lockfile",
 		Score:       depRiskScore,
 		Weight:      3.0,
@@ -80,7 +80,7 @@ func (r *ReleaseRiskAnalyzer) AnalyzeReleaseAndDependencyRisk(releases []github.
 		}
 	}
 
-	metrics = append(metrics, core.Metric{
+	metrics = append(metrics, analyzer.Metric{
 		Name:        "Stale Release Cadence",
 		Score:       releaseRiskScore,
 		Weight:      2.0,

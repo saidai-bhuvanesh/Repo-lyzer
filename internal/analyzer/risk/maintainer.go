@@ -3,24 +3,24 @@ package risk
 import (
 	"time"
 
-	"github.com/agnivo988/Repo-lyzer/internal/analyzer/core"
+	"github.com/agnivo988/Repo-lyzer/internal/analyzer"
 	"github.com/agnivo988/Repo-lyzer/internal/github"
 )
 
 // MaintainerRiskAnalyzer detects risks associated with contributor concentration and overload
 type MaintainerRiskAnalyzer struct {
-	Engine *core.WeightedScoreEngine
+	Engine *analyzer.WeightedScoreEngine
 }
 
 // NewMaintainerRiskAnalyzer initializes the maintainer risk analyzer
 func NewMaintainerRiskAnalyzer() *MaintainerRiskAnalyzer {
-	thresholds := core.Thresholds{
+	thresholds := analyzer.Thresholds{
 		Warning:   40,
 		Healthy:   0,
 		Excellent: 80,
 	}
 	return &MaintainerRiskAnalyzer{
-		Engine: core.NewWeightedScoreEngine(100.0, thresholds),
+		Engine: analyzer.NewWeightedScoreEngine(100.0, thresholds),
 	}
 }
 
@@ -30,7 +30,7 @@ func (m *MaintainerRiskAnalyzer) AnalyzeMaintainerRisk(
 	contributors []github.Contributor,
 	issues []github.Issue,
 ) (float64, RiskCategory) {
-	metrics := []core.Metric{}
+	metrics := []analyzer.Metric{}
 
 	// 1. Maintainer Overload Score
 	// Check if the repo has many open issues but extremely few contributors
@@ -43,7 +43,7 @@ func (m *MaintainerRiskAnalyzer) AnalyzeMaintainerRisk(
 		overloadRiskScore = 0.0 // Stable
 	}
 
-	metrics = append(metrics, core.Metric{
+	metrics = append(metrics, analyzer.Metric{
 		Name:        "Maintainer Overload Risk",
 		Score:       overloadRiskScore,
 		Weight:      2.0,
@@ -71,7 +71,7 @@ func (m *MaintainerRiskAnalyzer) AnalyzeMaintainerRisk(
 		concentrationRiskScore = 50.0 // Unknown risk
 	}
 
-	metrics = append(metrics, core.Metric{
+	metrics = append(metrics, analyzer.Metric{
 		Name:        "Contributor Concentration",
 		Score:       concentrationRiskScore,
 		Weight:      1.5,
@@ -95,7 +95,7 @@ func (m *MaintainerRiskAnalyzer) AnalyzeMaintainerRisk(
 			inactiveRiskScore = 40.0
 		}
 	}
-	metrics = append(metrics, core.Metric{
+	metrics = append(metrics, analyzer.Metric{
 		Name:        "Inactive Maintainer Risk",
 		Score:       inactiveRiskScore,
 		Weight:      1.0,

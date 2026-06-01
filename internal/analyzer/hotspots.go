@@ -99,25 +99,20 @@ func AnalyzeHotspots(
 			defer wg.Done()
 			hotspot := &topCandidates[idx]
 
+			// Fetch file content
 			content, err := client.GetFileContent(repo.Owner.Login, repo.Name, hotspot.FilePath)
-			if err == nil {
+			if err != nil {
+				hotspot.Complexity = 0
+			} else {
 				hotspot.Complexity = calculateComplexity(content, hotspot.FilePath)
-
-				// Update score with actual complexity
-				// Map complexity 1-50 to 0-100
-				compScore := hotspot.Complexity * 2
-				if compScore > 100 {
-					compScore = 100
-				}
-
-				// Refine total score
-				// Churn: 40%, Size: 20%, Complexity: 40%
-				hotspot.Score = (hotspot.ChurnScore * 40 / 100) +
-					(hotspot.SizeScore * 20 / 100) +
-					(compScore * 40 / 100)
-
-				hotspot.Reason = generateReason(hotspot)
 			}
+
+			compScore := hotspot.Complexity * 2
+			if compScore > 100 {
+				compScore = 100
+			}
+			hotspot.Score = (hotspot.ChurnScore * 40 / 100) + (hotspot.SizeScore * 20 / 100) + (compScore * 40 / 100)
+			hotspot.Reason = generateReason(hotspot)
 		}(i)
 	}
 	wg.Wait()

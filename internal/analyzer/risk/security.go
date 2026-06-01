@@ -3,30 +3,30 @@ package risk
 import (
 	"strings"
 
-	"github.com/agnivo988/Repo-lyzer/internal/analyzer/core"
+	"github.com/agnivo988/Repo-lyzer/internal/analyzer"
 	"github.com/agnivo988/Repo-lyzer/internal/github"
 )
 
 // SecurityRiskAnalyzer assesses repository security hygiene and posture
 type SecurityRiskAnalyzer struct {
-	Engine *core.WeightedScoreEngine
+	Engine *analyzer.WeightedScoreEngine
 }
 
 // NewSecurityRiskAnalyzer initializes the security risk analyzer
 func NewSecurityRiskAnalyzer() *SecurityRiskAnalyzer {
-	thresholds := core.Thresholds{
+	thresholds := analyzer.Thresholds{
 		Warning:   40,
 		Healthy:   0,
 		Excellent: 80,
 	}
 	return &SecurityRiskAnalyzer{
-		Engine: core.NewWeightedScoreEngine(100.0, thresholds),
+		Engine: analyzer.NewWeightedScoreEngine(100.0, thresholds),
 	}
 }
 
 // AnalyzeSecurityPosture evaluates missing security files and basic CI pipelines
 func (s *SecurityRiskAnalyzer) AnalyzeSecurityPosture(tree []github.TreeEntry) (float64, RiskCategory) {
-	metrics := []core.Metric{}
+	metrics := []analyzer.Metric{}
 
 	hasSecurityMD := false
 	hasCIWorkflows := false
@@ -56,7 +56,7 @@ func (s *SecurityRiskAnalyzer) AnalyzeSecurityPosture(tree []github.TreeEntry) (
 	if hasSecurityMD {
 		securityMDRisk = 0.0
 	}
-	metrics = append(metrics, core.Metric{
+	metrics = append(metrics, analyzer.Metric{
 		Name:        "Missing SECURITY.md",
 		Score:       securityMDRisk,
 		Weight:      3.0,
@@ -68,7 +68,7 @@ func (s *SecurityRiskAnalyzer) AnalyzeSecurityPosture(tree []github.TreeEntry) (
 	if hasCIWorkflows {
 		ciRisk = 0.0
 	}
-	metrics = append(metrics, core.Metric{
+	metrics = append(metrics, analyzer.Metric{
 		Name:        "Missing CI Workflows",
 		Score:       ciRisk,
 		Weight:      2.0,
@@ -80,7 +80,7 @@ func (s *SecurityRiskAnalyzer) AnalyzeSecurityPosture(tree []github.TreeEntry) (
 	if hasIssueTemplates {
 		templateRisk = 0.0
 	}
-	metrics = append(metrics, core.Metric{
+	metrics = append(metrics, analyzer.Metric{
 		Name:        "Missing Issue Templates",
 		Score:       templateRisk,
 		Weight:      1.0,
