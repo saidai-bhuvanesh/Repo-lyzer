@@ -1,5 +1,7 @@
+// Windows excluded because terminal rendering behavior differs across CI environments.
 //go:build !windows
 // +build !windows
+// The test is excluded on Windows because terminal rendering behavior differs across CI environments, affecting output consistency.
 
 package contribution
 

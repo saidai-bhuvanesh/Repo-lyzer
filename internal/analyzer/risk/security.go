@@ -41,7 +41,7 @@ func (s *SecurityRiskAnalyzer) AnalyzeSecurityPosture(tree []github.TreeEntry) (
 		}
 
 		// Check for CI workflows
-		if strings.HasPrefix(path, ".github/workflows/") && strings.HasSuffix(path, ".yml") {
+		if strings.HasPrefix(path, ".github/workflows/") && (strings.HasSuffix(path, ".yml") || strings.HasSuffix(path, ".yaml")) {
 			hasCIWorkflows = true
 		}
 

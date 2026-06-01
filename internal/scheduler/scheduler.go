@@ -22,6 +22,7 @@ import (
 	"golang.org/x/sync/semaphore"
 	"sync"
 	"context"
+	"errors"
 )
 
 // Scheduler manages scheduled analysis report jobs
@@ -106,6 +107,126 @@ func (s *Scheduler) Stop() {
 	close(s.stopChan)
 	s.wg.Wait()
 	log.Println("Scheduler stopped")
+// Package scheduler provides automated report scheduling functionality for Repo-lyzer.
+// It enables periodic analysis reports that run automatically and export results
+// to various formats (JSON, PDF, Markdown) and destinations (local path, webhook).
+package scheduler
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"log"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+
+	"github.com/agnivo988/Repo-lyzer/internal/analyzer"
+	"github.com/agnivo988/Repo-lyzer/internal/config"
+	"github.com/agnivo988/Repo-lyzer/internal/github"
+	"github.com/agnivo988/Repo-lyzer/internal/output"
+	"github.com/robfig/cron/v3"
+	"golang.org/x/sync/semaphore"
+)
+
+// Scheduler manages scheduled analysis report jobs
+type Scheduler struct {
+	cron           *cron.Cron
+	settings       *config.AppSettings
+	jobEntries     map[string]cron.EntryID
+	reportExporter *ReportExporter
+	jobCooldowns   map[string]time.Time // tracks last execution time for cooldown
+	maxWorkers     int
+	workerSem      *semaphore.Weighted
+	// Fair queue fields
+	pendingJobs    []config.ScheduledJob
+	queueMutex     sync.Mutex
+	workerFairness int // round‑robin index
+	// Starvation prevention telemetry
+	starvationCount     int           // number of jobs that waited beyond threshold
+	starvationThreshold time.Duration // wait time threshold for starvation detection
+	// Worker timeout configuration
+	workerExecutionTimeout time.Duration
+	ctx                    context.Context
+	cancel                 context.CancelFunc
+	stopChan               chan struct{}
+	wg                     sync.WaitGroup
+}
+
+// ReportExporter handles exporting analysis reports to various formats
+type ReportExporter struct{}
+
+// NewScheduler creates a new scheduler instance
+func NewScheduler() (*Scheduler, error) {
+	settings, err := config.LoadSettings()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load settings: %w", err)
+	}
+
+	// Default max workers; can be made configurable later
+	maxWorkers := 5
+	ctx, cancel := context.WithCancel(context.Background())
+
+	return &Scheduler{
+		cron:           cron.New(),
+		settings:       settings,
+		jobEntries:     make(map[string]cron.EntryID),
+		reportExporter: &ReportExporter{},
+		jobCooldowns:   make(map[string]time.Time),
+		maxWorkers:     maxWorkers,
+		workerSem:      semaphore.NewWeighted(int64(maxWorkers)),
+		pendingJobs:    make([]config.ScheduledJob, 0),
+		queueMutex:     sync.Mutex{},
+		workerFairness: 0,
+		// Starvation prevention telemetry defaults
+		starvationCount:     0,
+		starvationThreshold: 2 * time.Minute,
+		workerExecutionTimeout: 5 * time.Minute,
+		ctx:            ctx,
+		cancel:         cancel,
+		stopChan:       make(chan struct{}),
+		wg:             sync.WaitGroup{},
+	}, nil
+}
+
+// Start initializes and starts the scheduler with all registered jobs
+func (s *Scheduler) Start() error {
+	log.Println("Starting scheduler...")
+
+	// Load jobs from settings
+	jobs := s.settings.GetScheduledJobs()
+	for _, job := range jobs {
+		if !job.Enabled {
+			continue
+		}
+		// Skip if job is in cooldown
+		if cd, ok := s.jobCooldowns[job.ID]; ok && time.Now().Before(cd) {
+			log.Printf("Job %s is in cooldown until %s, skipping schedule", job.ID, cd.Format(time.RFC3339))
+			continue
+		}
+		if err := s.scheduleJob(job); err != nil {
+			log.Printf("Failed to schedule job %s: %v", job.ID, err)
+		}
+	}
+
+	// Start background processor for fair queue
+	s.wg.Add(1)
+	go s.processQueue()
+
+	s.cron.Start()
+	log.Printf("Scheduler started with %d enabled jobs", len(jobs))
+	return nil
+}
+
+// Stop stops the scheduler gracefully
+func (s *Scheduler) Stop() {
+	log.Println("Stopping scheduler...")
+	s.cron.Stop()
+	close(s.stopChan)
+	s.wg.Wait()
+	log.Println("Scheduler stopped")
 }
 
 // scheduleJob adds a job to the cron scheduler
@@ -114,9 +235,15 @@ func (s *Scheduler) scheduleJob(job config.ScheduledJob) error {
 
 	jobFunc := func() {
 		log.Printf("Enqueuing scheduled job: %s for %s/%s", job.ID, job.Owner, job.Repo)
-		// Add to fair queue
+		// Enforce cooldown before enqueue
+		if cd, ok := s.jobCooldowns[job.ID]; ok && time.Now().Before(cd) {
+			log.Printf("Job %s is in cooldown until %s, skipping enqueue", job.ID, cd.Format(time.RFC3339))
+			return
+		}
+		// Add to fair queue with enqueued timestamp
 		s.queueMutex.Lock()
 		defer s.queueMutex.Unlock()
+		job.EnqueuedAt = time.Now()
 		// Append job; preserve order of arrival
 		s.pendingJobs = append(s.pendingJobs, job)
 	}
@@ -441,8 +568,23 @@ func (s *Scheduler) processQueue() {
             var job config.ScheduledJob
             s.queueMutex.Lock()
             if len(s.pendingJobs) > 0 {
-                job = s.pendingJobs[0]
-                s.pendingJobs = s.pendingJobs[1:]
+                // Find job with oldest EnqueuedAt
+                oldestIdx := 0
+                oldestTime := s.pendingJobs[0].EnqueuedAt
+                for i, j := range s.pendingJobs {
+                    if j.EnqueuedAt.Before(oldestTime) {
+                        oldestIdx = i
+                        oldestTime = j.EnqueuedAt
+                    }
+                }
+                job = s.pendingJobs[oldestIdx]
+                // Remove selected job
+                s.pendingJobs = append(s.pendingJobs[:oldestIdx], s.pendingJobs[oldestIdx+1:]...)
+                // Starvation telemetry: if waited longer than threshold, count
+                if s.starvationThreshold > 0 && time.Since(job.EnqueuedAt) > s.starvationThreshold {
+                    s.starvationCount++
+                    log.Printf("Starvation detected for job %s (waited %s)", job.ID, time.Since(job.EnqueuedAt))
+                }
             }
             s.queueMutex.Unlock()
             if job.ID == "" {
@@ -450,9 +592,21 @@ func (s *Scheduler) processQueue() {
                 time.Sleep(100 * time.Millisecond)
                 continue
             }
-            if err := s.executeJob(job); err != nil {
-                log.Printf("error executing job %s: %v", job.ID, err)
-            }
+            // Launch job with timeout-aware context
+            s.wg.Add(1)
+            go func(j config.ScheduledJob) {
+                defer s.wg.Done()
+                // Create a timeout context for this job
+                ctx, cancel := context.WithTimeout(s.ctx, s.workerExecutionTimeout)
+                defer cancel()
+                if err := s.runJobWithTimeout(ctx, j); err != nil {
+                    if errors.Is(err, context.DeadlineExceeded) {
+                        log.Printf("scheduler worker timeout: job=%s timeout=%v", j.ID, s.workerExecutionTimeout)
+                    } else {
+                        log.Printf("error executing job %s: %v", j.ID, err)
+                    }
+                }
+            }(job)
         }
     }
 }

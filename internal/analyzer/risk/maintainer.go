@@ -57,7 +57,12 @@ func (m *MaintainerRiskAnalyzer) AnalyzeMaintainerRisk(
 		for _, c := range contributors {
 			totalCommits += c.Commits
 		}
-		topContributorRatio := float64(contributors[0].Commits) / float64(totalCommits)
+		var topContributorRatio float64
+		if totalCommits > 0 {
+			topContributorRatio = float64(contributors[0].Commits) / float64(totalCommits)
+		} else {
+			topContributorRatio = 0.0
+		}
 
 		switch {
 		case topContributorRatio > 0.85:

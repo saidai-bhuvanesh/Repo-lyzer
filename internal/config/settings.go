@@ -377,6 +377,7 @@ type ScheduledJob struct {
 	LastRun        time.Time         `json:"last_run"`        // Last execution time
 	NextRun        time.Time         `json:"next_run"`        // Next scheduled execution
 	CreatedAt      time.Time         `json:"created_at"`      // Job creation time
+	EnqueuedAt     time.Time         `json:"enqueued_at,omitempty"` // When the job was enqueued for execution
 	AnalysisType   string            `json:"analysis_type"`   // Type of analysis to run
 }
 

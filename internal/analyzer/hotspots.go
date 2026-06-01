@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"log"
 
 	"github.com/agnivo988/Repo-lyzer/internal/github"
 )
@@ -99,9 +100,9 @@ func AnalyzeHotspots(
 			defer wg.Done()
 			hotspot := &topCandidates[idx]
 
-			// Fetch file content
 			content, err := client.GetFileContent(repo.Owner.Login, repo.Name, hotspot.FilePath)
 			if err != nil {
+				log.Printf("error fetching file %s for hotspot analysis: %v", hotspot.FilePath, err)
 				hotspot.Complexity = 0
 			} else {
 				hotspot.Complexity = calculateComplexity(content, hotspot.FilePath)

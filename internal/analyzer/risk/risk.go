@@ -23,7 +23,7 @@ func NewRiskAnalyzer() *RiskAnalyzer {
 	// Since our core engine returns 'Excellent' for highest scores, we need to map categories correctly.
 	// We'll create custom wrapper functions below to translate the core engine output to Risk terminology.
 	thresholds := analyzer.Thresholds{
-		Warning:   50,
+		Warning:   40,
 		Healthy:   0,  // Technically not used directly since we remap
 		Excellent: 80, // We will map Excellent to Critical for risk
 	}
@@ -46,7 +46,7 @@ const (
 func (r *RiskAnalyzer) TranslateScoreToRisk(score float64) RiskCategory {
 	if score >= 80.0 {
 		return RiskCritical
-	} else if score >= 40.0 {
+	} else if score >= 50.0 {
 		return RiskWarning
 	}
 	return RiskStable
