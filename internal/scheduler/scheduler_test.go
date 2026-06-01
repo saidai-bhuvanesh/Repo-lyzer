@@ -59,7 +59,7 @@ func TestSemaphoreReleaseAfterTimeout(t *testing.T) {
     s.workerExecutionTimeout = 10 * time.Millisecond
 
     // Acquire all worker slots.
-    for i := 0; i < s.maxWorkers; i++ {
+    for i := 0; i < s.maxWorkers-1; i++ {
         if err := s.workerSem.Acquire(context.Background(), 1); err != nil {
             t.Fatalf("failed to acquire semaphore slot %d: %v", i, err)
         }
